@@ -1,6 +1,6 @@
-use cosmwasm_std::{Order as OrderBy, StdResult, Storage, CanonicalAddr};
+use cosmwasm_std::{Order as OrderBy, StdResult, Storage, CanonicalAddr, Decimal};
 use cosmwasm_storage::{singleton, singleton_read, Bucket, ReadonlyBucket};
-use oraiswap::{limit_order::ContractInfo, querier::calc_range_start};
+use oraiswap::{limit_order::{ContractInfo, OrderDirection, OrderStatus}, querier::calc_range_start};
 use serde::{de::DeserializeOwned, Serialize};
 
 use crate::orderbook::{Order, OrderBook, Executor};
@@ -130,15 +130,15 @@ pub fn store_order(
     )
     .save(order_id_key, &order.direction)?;
 
-    Bucket::multilevel(
-        storage,
-        &[
-            PREFIX_ORDER_BY_STATUS,
-            pair_key,
-            &order.status.as_bytes(),
-        ],
-    )
-    .save(order_id_key, &order.direction)?;
+    // Bucket::multilevel(
+    //     storage,
+    //     &[
+    //         PREFIX_ORDER_BY_STATUS,
+    //         pair_key,
+    //         &order.status.as_bytes(),
+    //     ],
+    // )
+    // .save(order_id_key, &order.direction)?;
 
     Ok(total_tick_orders)
 }
@@ -169,10 +169,10 @@ pub fn remove_order(storage: &mut dyn Storage, pair_key: &[u8], order: &Order) -
     }
 
     // value is just bool to represent indexer
-    Bucket::<bool>::multilevel(storage, &[PREFIX_ORDER_BY_PRICE, pair_key, &price_key])
+    Bucket::<OrderDirection>::multilevel(storage, &[PREFIX_ORDER_BY_PRICE, pair_key, &price_key])
         .remove(order_id_key);
 
-    Bucket::<bool>::multilevel(
+    Bucket::<OrderDirection>::multilevel(
         storage,
         &[
             PREFIX_ORDER_BY_BIDDER,
@@ -182,7 +182,7 @@ pub fn remove_order(storage: &mut dyn Storage, pair_key: &[u8], order: &Order) -
     )
     .remove(order_id_key);
 
-    Bucket::<bool>::multilevel(
+    Bucket::<OrderDirection>::multilevel(
         storage,
         &[
             PREFIX_ORDER_BY_DIRECTION,
@@ -192,18 +192,79 @@ pub fn remove_order(storage: &mut dyn Storage, pair_key: &[u8], order: &Order) -
     )
     .remove(order_id_key);
 
-    Bucket::<bool>::multilevel(
-        storage,
-        &[
-            PREFIX_ORDER_BY_STATUS,
-            pair_key,
-            &order.status.as_bytes(),
-        ],
-    )
-    .remove(order_id_key);
+    // Bucket::<OrderDirection>::multilevel(
+    //     storage,
+    //     &[
+    //         PREFIX_ORDER_BY_STATUS,
+    //         pair_key,
+    //         &order.status.as_bytes(),
+    //     ],
+    // )
+    // .remove(order_id_key);
 
     // return total orders belong to the tick
     Ok(total_tick_orders)
+}
+
+pub fn read_status(
+    storage: &dyn Storage,
+    pair_key: &[u8],
+    order_id: u64,
+    status: OrderStatus
+) -> StdResult<OrderDirection> {
+    let order_id_key = order_id.to_be_bytes();
+    let direction =
+        ReadonlyBucket::<OrderDirection>::multilevel(
+            storage,
+            &[
+                PREFIX_ORDER_BY_STATUS,
+                pair_key,
+                status.as_bytes()
+            ]
+        ).load(&order_id_key)?;
+
+    Ok(direction)
+}
+
+pub fn remove_status(
+    storage: &mut dyn Storage,
+    pair_key: &[u8],
+    order_id: u64,
+    status: OrderStatus
+) -> StdResult<u64> {
+    let order_id_key = order_id.to_be_bytes();
+    let ret = 0u64;
+
+    let _res =
+        Bucket::<OrderDirection>::multilevel(
+            storage,
+            &[
+                PREFIX_ORDER_BY_STATUS,
+                pair_key,
+                status.as_bytes()
+            ]
+        ).remove(&order_id_key);
+    Ok(ret)
+}
+
+
+pub fn remove_tick(storage: &mut dyn Storage, pair_key: &[u8], direction: OrderDirection, price: Decimal) -> StdResult<u64> {
+    let price_key = price.atomics().to_be_bytes();
+
+    // not found means total is 0
+    let tick_namespaces = &[PREFIX_TICK, pair_key, direction.as_bytes()];
+    let total_tick_orders = ReadonlyBucket::<u64>::multilevel(storage, tick_namespaces)
+        .load(&price_key)
+        .unwrap_or_default();
+
+    let mut total_price_tick = 0;
+    if total_tick_orders == 0 {
+        total_price_tick = 1;
+        let _res = Bucket::<u64>::multilevel(storage, tick_namespaces).remove(&price_key);
+    }
+
+    // return total orders belong to the tick
+    Ok(total_price_tick)
 }
 
 pub fn read_order(storage: &dyn Storage, pair_key: &[u8], order_id: u64) -> StdResult<Order> {

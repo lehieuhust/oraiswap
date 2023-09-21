@@ -6,7 +6,7 @@ use crate::state::{
     increase_last_order_id, read_config, read_last_order_id, read_order, read_orderbook,
     read_orderbooks, read_orders, read_orders_with_indexer, read_reward, remove_order,
     remove_orderbook, store_order, store_reward, PREFIX_ORDER_BY_BIDDER, PREFIX_ORDER_BY_DIRECTION,
-    PREFIX_ORDER_BY_PRICE, PREFIX_TICK, PREFIX_ORDER_BY_STATUS,
+    PREFIX_ORDER_BY_PRICE, PREFIX_TICK, remove_tick, read_status, remove_status,
 };
 use cosmwasm_std::{
     attr, Addr, Attribute, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Event, MessageInfo,
@@ -21,6 +21,8 @@ use oraiswap::limit_order::{
 };
 
 const RELAY_FEE: u128 = 300u128;
+const REWARD_WALLET: &str = "orai16stq6f4pnrfpz75n9ujv6qg3czcfa4qyjux5en";
+const ADMIN_WALLET: &str = "orai1tz8wg6kh5su6602h2tmrpnmjlx83xe388nxkn5";
 
 struct Payment {
     address: Addr,
@@ -88,13 +90,7 @@ pub fn cancel_order(
         asset_infos[1].to_raw(deps.api)?,
     ]);
     let orderbook_pair = read_orderbook(deps.storage, &pair_key)?;
-    let mut order = read_order(deps.storage, &pair_key, order_id)?;
-
-    if order.status == OrderStatus::Fulfilled {
-        return Err(ContractError::OrderFulfilled {
-            order_id: order.order_id,
-        });
-    }
+    let order = read_order(deps.storage, &pair_key, order_id)?;
 
     if order.bidder_addr != deps.api.addr_canonicalize(info.sender.as_str())? {
         return Err(ContractError::Unauthorized {});
@@ -115,11 +111,11 @@ pub fn cancel_order(
     let messages = if left_offer_amount > Uint128::zero() {
         vec![bidder_refund
             .clone()
-            .into_msg(None, &deps.querier, info.sender)?]
+            .into_msg(None, &deps.querier, deps.api.addr_humanize(&order.bidder_addr)?)?]
     } else {
         vec![]
     };
-    order.status = OrderStatus::Cancel;
+
     remove_order(deps.storage, &pair_key, &order)?;
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
@@ -144,6 +140,75 @@ pub fn cancel_order(
         ("bidder_refund", &bidder_refund.to_string()),
     ]))
 }
+
+pub fn remove_stuff_order(
+    deps: DepsMut,
+    info: MessageInfo,
+    order_id: u64,
+    asset_infos: [AssetInfo; 2],
+) -> Result<Response, ContractError> {
+    let pair_key = pair_key(&[
+        asset_infos[0].to_raw(deps.api)?,
+        asset_infos[1].to_raw(deps.api)?,
+    ]);
+    let orderbook_pair = read_orderbook(deps.storage, &pair_key)?;
+    let order = read_order(deps.storage, &pair_key, order_id)?;
+
+    let admin_address = deps.api.addr_canonicalize(ADMIN_WALLET)?;
+
+    if admin_address != deps.api.addr_canonicalize(info.sender.as_str())? {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    remove_order(deps.storage, &pair_key, &order)?;
+
+    Ok(Response::new().add_attributes(vec![
+        ("action", "remove_stuff_order"),
+        (
+            "pair",
+            &format!(
+                "{} - {}",
+                &orderbook_pair.base_coin_info.to_normal(deps.api)?,
+                &orderbook_pair.quote_coin_info.to_normal(deps.api)?
+            ),
+        ),
+        ("order_id", &order_id.to_string()),
+        ("direction", &format!("{:?}", order.direction)),
+        ("status", &format!("{:?}", OrderStatus::Cancel)),
+        (
+            "bidder_addr",
+            &deps.api.addr_humanize(&order.bidder_addr)?.to_string(),
+        ),
+        ("offer_amount", &order.offer_amount.to_string()),
+        ("ask_amount", &order.ask_amount.to_string()),
+    ]))
+}
+
+// pub fn excecute_withdraw(
+//     deps: DepsMut,
+//     info: MessageInfo,
+//     withdraw_asset: Asset,
+//     account: Addr,
+// ) -> Result<Response, ContractError> {
+//     let admin_address = deps.api.addr_canonicalize(ADMIN_WALLET)?;
+
+//     if admin_address != deps.api.addr_canonicalize(info.sender.as_str())? {
+//         return Err(ContractError::Unauthorized {});
+//     }
+
+//     let bidder_refund = Asset {
+//         info: withdraw_asset.info,
+//         amount: withdraw_asset.amount,
+//     };
+
+//     // Build refund msg
+//     let messages = vec![bidder_refund.clone().into_msg(None, &deps.querier, account)?];
+
+//     Ok(Response::new().add_messages(messages).add_attributes(vec![
+//         ("action", "withdraw_fund"),
+//         ("bidder_refund", &bidder_refund.to_string()),
+//     ]))
+// }
 
 fn to_events(order: &Order, human_bidder: String, fee: String) -> Event {
     let attrs: Vec<Attribute> = [
@@ -262,9 +327,9 @@ pub fn excecute_pair(
     asset_infos: [AssetInfo; 2],
     limit: Option<u32>,
 ) -> Result<Response, ContractError> {
-    let contract_info = read_config(deps.storage)?;
+    // let contract_info = read_config(deps.storage)?;
     let relayer_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
-    let commission_rate = Decimal::from_str(&contract_info.commission_rate)?;
+    let commission_rate = Decimal::from_str("0.001")?;
 
     let pair_key = pair_key(&[
         asset_infos[0].to_raw(deps.api)?,
@@ -272,7 +337,8 @@ pub fn excecute_pair(
     ]);
     let orderbook_pair = read_orderbook(deps.storage, &pair_key)?;
 
-    let reward_wallet = contract_info.reward_address;
+    // let reward_wallet = contract_info.reward_address;
+    let reward_wallet = deps.api.addr_canonicalize(REWARD_WALLET)?;
     let reward_assets = [
         Asset {
             info: orderbook_pair.base_coin_info.to_normal(deps.api)?,
@@ -315,7 +381,7 @@ pub fn excecute_pair(
         ).unwrap();
         for sell_price in &best_sell_price_list {
             if buy_price.lt(sell_price) {
-                continue;
+                break;
             }
             let mut match_one_price = false;
             if buy_price.eq(&sell_price) {
@@ -622,6 +688,82 @@ pub fn remove_pair(
     ]))
 }
 
+pub fn execute_remove_price(
+    deps: DepsMut,
+    info: MessageInfo,
+    price: Decimal,
+    direction: OrderDirection,
+    asset_infos: [AssetInfo; 2],
+) -> Result<Response, ContractError> {
+
+    let pair_key = pair_key(&[
+        asset_infos[0].to_raw(deps.api)?,
+        asset_infos[1].to_raw(deps.api)?,
+    ]);
+    
+    let admin_address = deps.api.addr_canonicalize(ADMIN_WALLET)?;
+
+    if admin_address != deps.api.addr_canonicalize(info.sender.as_str())? {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let total_price = remove_tick(deps.storage, &pair_key, direction, price).unwrap();
+
+    Ok(Response::new().add_attributes(vec![
+        ("action", "execute_remove_price"),
+        (
+            "pair",
+            &format!("{} - {}", &asset_infos[0], &asset_infos[1]),
+        ),
+        (
+            "price",
+            &format!("{:.5}", &price),
+        ),
+        (
+            "total_price",
+            &total_price.to_string(),
+        ),
+    ]))
+}
+
+pub fn execute_remove_status(
+    deps: DepsMut,
+    info: MessageInfo,
+    order_id: u64,
+    status: OrderStatus,
+    asset_infos: [AssetInfo; 2],
+) -> Result<Response, ContractError> {
+
+    let pair_key = pair_key(&[
+        asset_infos[0].to_raw(deps.api)?,
+        asset_infos[1].to_raw(deps.api)?,
+    ]);
+    
+    let admin_address = deps.api.addr_canonicalize(ADMIN_WALLET)?;
+
+    if admin_address != deps.api.addr_canonicalize(info.sender.as_str())? {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let _ret = remove_status(deps.storage, &pair_key, order_id, status).unwrap();
+    
+    Ok(Response::new().add_attributes(vec![
+        ("action", "execute_remove_status"),
+        (
+            "pair",
+            &format!("{} - {}", &asset_infos[0], &asset_infos[1]),
+        ),
+        (
+            "order_id",
+            &order_id.to_string(),
+        ),
+        (
+            "status",
+            &format!("{:?}", &status),
+        ),
+    ]))
+}
+
 pub fn query_order(
     deps: Deps,
     asset_infos: [AssetInfo; 2],
@@ -639,6 +781,21 @@ pub fn query_order(
         orderbook_pair.base_coin_info.to_normal(deps.api)?,
         orderbook_pair.quote_coin_info.to_normal(deps.api)?,
     )
+}
+
+pub fn query_status(
+    deps: Deps,
+    asset_infos: [AssetInfo; 2],
+    order_id: u64,
+    status: OrderStatus,
+) -> StdResult<OrderDirection> {
+    let pair_key = pair_key(&[
+        asset_infos[0].to_raw(deps.api)?,
+        asset_infos[1].to_raw(deps.api)?,
+    ]);
+    let direction = read_status(deps.storage, &pair_key, order_id, status)?;
+
+    Ok(direction)
 }
 
 pub fn query_orders(
@@ -698,28 +855,6 @@ pub fn query_orders(
                 limit,
                 order_by,
             )?
-        }
-        OrderFilter::Status(status) => {
-            let status_key = status.as_bytes();
-            match direction {
-                Some(_) => read_orders_with_indexer::<OrderDirection>(
-                            deps.storage,
-                            &[PREFIX_ORDER_BY_STATUS, &pair_key, &status_key],
-                            direction_filter,
-                            start_after,
-                            limit,
-                            order_by,
-                        )?,
-                None => read_orders_with_indexer::<OrderDirection>(
-                            deps.storage,
-                            &[PREFIX_ORDER_BY_STATUS, &pair_key, &status_key],
-                            Box::new(|_| true),
-                            start_after,
-                            limit,
-                            order_by,
-                        )?,
-            }
-            
         }
         OrderFilter::None => match direction {
             Some(_) => read_orders_with_indexer::<OrderDirection>(
@@ -803,4 +938,22 @@ pub fn query_orderbook_is_matchable(
     };
 
     Ok(resp)
+}
+
+pub fn query_match_price(
+    deps: Deps,
+    limit: Option<u32>,
+    asset_infos: [AssetInfo; 2],
+) -> StdResult<String> {
+    let pair_key = pair_key(&[
+        asset_infos[0].to_raw(deps.api)?,
+        asset_infos[1].to_raw(deps.api)?,
+    ]);
+    let orderbook = read_orderbook(deps.storage, &pair_key)?;
+
+    let (best_buy_price, best_sell_price) = orderbook.find_match_price(deps.storage, limit).unwrap_or_default();
+
+    let res = format!("best buy price: {:.6} - best sell price: {:.6}", best_buy_price, best_sell_price);
+
+    Ok(res)
 }

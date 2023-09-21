@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use cosmwasm_std::{to_binary, Addr, Coin, Decimal, StdError, Uint128};
 use oraiswap::create_entry_points_testing;
 use oraiswap::testing::{AttributeUtil, MockApp, ATOM_DENOM};
@@ -6,7 +8,7 @@ use oraiswap::asset::{Asset, AssetInfo, ORAI_DENOM};
 use oraiswap::limit_order::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg, LastOrderIdResponse, OrderBookMatchableResponse,
     OrderBookResponse, OrderBooksResponse, OrderDirection, OrderFilter, OrderResponse, OrderStatus,
-    OrdersResponse, QueryMsg, TicksResponse,
+    OrdersResponse, QueryMsg, TicksResponse, TickResponse,
 };
 
 use crate::jsonstr;
@@ -5405,27 +5407,27 @@ fn orders_querier() {
         .unwrap();
     println!("[LOG] [3] - query all order: {}", jsonstr!(test));
     
-    let test1 = app
-        .query::<OrdersResponse, _>(
-            limit_order_addr.clone(),
-            &QueryMsg::Orders {
-                asset_infos: [
-                    AssetInfo::Token {
-                        contract_addr: token_addrs[1].clone(),
-                    },
-                    AssetInfo::Token {
-                        contract_addr: token_addrs[0].clone(),
-                    },
-                ],
-                direction: None,
-                filter: OrderFilter::Status(OrderStatus::Open),
-                start_after: None,
-                limit: None,
-                order_by: None,
-            },
-        )
-        .unwrap();
-    println!("[LOG] [4] - query all open orders: {}", jsonstr!(test1));
+    // let test1 = app
+    //     .query::<OrdersResponse, _>(
+    //         limit_order_addr.clone(),
+    //         &QueryMsg::Orders {
+    //             asset_infos: [
+    //                 AssetInfo::Token {
+    //                     contract_addr: token_addrs[1].clone(),
+    //                 },
+    //                 AssetInfo::Token {
+    //                     contract_addr: token_addrs[0].clone(),
+    //                 },
+    //             ],
+    //             direction: None,
+    //             filter: OrderFilter::Status(OrderStatus::Open),
+    //             start_after: None,
+    //             limit: None,
+    //             order_by: None,
+    //         },
+    //     )
+    //     .unwrap();
+    // println!("[LOG] [4] - query all open orders: {}", jsonstr!(test1));
 
     assert_eq!(
         OrdersResponse {
@@ -5563,13 +5565,57 @@ fn orders_querier() {
                         denom: ATOM_DENOM.to_string(),
                     },
                 ],
-                direction: OrderDirection::Buy,
+                direction: OrderDirection::Sell,
                 start_after: None,
                 limit: None,
                 order_by: Some(1),
             },
         )
         .unwrap();
+    println!("query all tick: {:?}", jsonstr!(res));
+
+    let msg = ExecuteMsg::RemoveTickPrice {
+        price: Decimal::from_str("1.000").unwrap(),
+        asset_infos: [
+            AssetInfo::NativeToken {
+                denom: ORAI_DENOM.to_string(),
+            },
+            AssetInfo::NativeToken {
+                denom: USDT_DENOM.to_string(),
+            },
+        ],
+        direction: OrderDirection::Buy,
+    };
+
+    let remove_price_res = app
+        .execute(
+            Addr::unchecked("addr0000"),
+            limit_order_addr.clone(),
+            &msg,
+            &[],
+        )
+        .unwrap();
+    println!("remove price res: {:?}", remove_price_res);
+
+    // query all ticks
+    let _res = app
+        .query::<TickResponse, _>(
+            limit_order_addr.clone(),
+            &QueryMsg::Tick {
+                asset_infos: [
+                    AssetInfo::NativeToken {
+                        denom: ORAI_DENOM.to_string(),
+                    },
+                    AssetInfo::NativeToken {
+                        denom: ATOM_DENOM.to_string(),
+                    },
+                ],
+                direction: OrderDirection::Buy,
+                price: Decimal::from_str("1.000").unwrap(),
+            },
+        )
+        .unwrap();
+    println!("2222 query all tick: {:?}", _res);
 
     for tick in res.ticks {
         let res = app

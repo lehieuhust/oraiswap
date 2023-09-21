@@ -106,6 +106,25 @@ pub enum ExecuteMsg {
     RemoveOrderBookPair {
         asset_infos: [AssetInfo; 2],
     },
+
+    /// Arbitrager remove price
+    RemoveTickPrice {
+        price: Decimal,
+        asset_infos: [AssetInfo; 2],
+        direction: OrderDirection,
+    },
+
+    /// Arbitrager remove status
+    RemoveStatus{
+        asset_infos: [AssetInfo; 2],
+        order_id: u64,
+        status: OrderStatus,
+    },
+
+    RemoveStuffOrder {
+        order_id: u64,
+        asset_infos: [AssetInfo; 2],
+    },
 }
 
 #[cw_serde]
@@ -120,7 +139,6 @@ pub enum Cw20HookMsg {
 pub enum OrderFilter {
     Bidder(String),             // filter by bidder
     Price(Decimal),             // filter by price
-    Status(OrderStatus),        // filter by status
     Tick,                       // filter by direction
     None,                       // no filter
 }
@@ -173,6 +191,17 @@ pub enum QueryMsg {
     #[returns(OrderBookMatchableResponse)]
     OrderBookMatchable {
         asset_infos: [AssetInfo; 2],
+    },
+    #[returns(String)]
+    MatchPrice {
+        limit: Option<u32>,
+        asset_infos: [AssetInfo; 2],
+    },
+    #[returns(OrderDirection)]
+    Status {
+        asset_infos: [AssetInfo; 2],
+        status: OrderStatus,
+        order_id: u64,
     },
 }
 

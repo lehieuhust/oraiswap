@@ -245,18 +245,19 @@ impl OrderBook {
     }
 
     /// find best buy price and best sell price that matched a spread, currently no spread is set
-    pub fn find_match_price(&self, storage: &dyn Storage) -> Option<(Decimal, Decimal)> {
+    pub fn find_match_price(&self, storage: &dyn Storage, limit: Option<u32>) -> Option<(Decimal, Decimal)> {
         let pair_key = &self.get_pair_key();
         let (mut best_buy_price, found, _) = self.highest_price(storage, OrderDirection::Buy);
         if !found {
             return None;
         }
-
+        let limit = limit.unwrap_or(20) as usize;
         // if there is spread, find the best sell price closest to best buy price
         if let Some(spread) = self.spread {
             let spread_factor = Decimal::one() + spread;
             let buy_price_list = ReadonlyBucket::<u64>::multilevel(storage, &[PREFIX_TICK, pair_key, OrderDirection::Buy.as_bytes()])
                 .range(None, None, OrderBy::Descending)
+                .take(limit)
                 .filter_map(|item| {
                     if let Ok((price_key, _)) = item {
                         let buy_price = Decimal::raw(u128::from_be_bytes(price_key.try_into().unwrap()));

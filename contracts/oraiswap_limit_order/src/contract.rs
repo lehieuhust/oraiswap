@@ -9,7 +9,7 @@ use oraiswap::error::ContractError;
 
 use crate::order::{
     cancel_order, query_last_order_id, query_order, query_orderbook,
-    query_orderbooks, query_orders, submit_order, remove_pair, excecute_pair, query_orderbook_is_matchable,
+    query_orderbooks, query_orders, submit_order, remove_pair, excecute_pair, query_orderbook_is_matchable, query_match_price, execute_remove_price, query_status, execute_remove_status, remove_stuff_order,
 };
 use crate::orderbook::OrderBook;
 use crate::state::{init_last_order_id, read_config, store_config, store_orderbook, read_orderbook};
@@ -161,6 +161,20 @@ pub fn execute(
         } => {
             remove_pair(deps, info, asset_infos)
         }
+        ExecuteMsg::RemoveTickPrice {
+            price,
+            asset_infos,
+            direction
+        } => execute_remove_price(deps, info, price, direction, asset_infos),
+        ExecuteMsg::RemoveStatus {
+            asset_infos,
+            order_id,
+            status,
+        } => execute_remove_status(deps, info, order_id, status, asset_infos),
+        ExecuteMsg::RemoveStuffOrder {
+            asset_infos,
+            order_id,
+        } => remove_stuff_order(deps, info, order_id, asset_infos),
     }
 }
 
@@ -381,6 +395,15 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::OrderBookMatchable {
             asset_infos
         } => to_binary(&query_orderbook_is_matchable(deps, asset_infos)?),
+        QueryMsg::MatchPrice {
+            limit,
+            asset_infos
+        } => to_binary(&query_match_price(deps, limit, asset_infos)?),
+        QueryMsg::Status {
+            asset_infos,
+            order_id,
+            status
+        } => to_binary(&query_status(deps, asset_infos, order_id, status)?),
     }
 }
 
