@@ -264,10 +264,4 @@ pub struct OrderBookMatchableResponse {
 }
 
 #[cw_serde]
-pub struct MigrateMsg {
-    pub name: String,
-    pub version: String,
-    pub admin: Addr,
-    pub commission_rate: String,
-    pub reward_address: Addr
-}
+pub struct MigrateMsg {}

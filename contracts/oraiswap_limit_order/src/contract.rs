@@ -468,17 +468,6 @@ pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfoResponse> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
-    let config = ContractInfo { 
-        name: msg.name,
-        version: msg.version,
-
-        // admin should be multisig
-        admin: deps.api.addr_canonicalize(msg.admin.as_str())?,
-        commission_rate: msg.commission_rate,
-        reward_address: deps.api.addr_canonicalize(msg.reward_address.as_str())?,
-    };
-
-    store_config(deps.storage, &config)?;
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
 }
