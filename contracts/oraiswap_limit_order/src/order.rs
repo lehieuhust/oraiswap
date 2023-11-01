@@ -141,32 +141,6 @@ pub fn cancel_order(
     ]))
 }
 
-// pub fn excecute_withdraw(
-//     deps: DepsMut,
-//     info: MessageInfo,
-//     withdraw_asset: Asset,
-//     account: Addr,
-// ) -> Result<Response, ContractError> {
-//     let admin_address = deps.api.addr_canonicalize(ADMIN_WALLET)?;
-
-//     if admin_address != deps.api.addr_canonicalize(info.sender.as_str())? {
-//         return Err(ContractError::Unauthorized {});
-//     }
-
-//     let bidder_refund = Asset {
-//         info: withdraw_asset.info,
-//         amount: withdraw_asset.amount,
-//     };
-
-//     // Build refund msg
-//     let messages = vec![bidder_refund.clone().into_msg(None, &deps.querier, account)?];
-
-//     Ok(Response::new().add_messages(messages).add_attributes(vec![
-//         ("action", "withdraw_fund"),
-//         ("bidder_refund", &bidder_refund.to_string()),
-//     ]))
-// }
-
 fn to_events(order: &Order, human_bidder: String, fee: String) -> Event {
     let attrs: Vec<Attribute> = [
         attr("status", format!("{:?}", order.status)),
