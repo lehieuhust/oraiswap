@@ -130,16 +130,6 @@ pub fn store_order(
     )
     .save(order_id_key, &order.direction)?;
 
-    // Bucket::multilevel(
-    //     storage,
-    //     &[
-    //         PREFIX_ORDER_BY_STATUS,
-    //         pair_key,
-    //         &order.status.as_bytes(),
-    //     ],
-    // )
-    // .save(order_id_key, &order.direction)?;
-
     Ok(total_tick_orders)
 }
 
@@ -191,16 +181,6 @@ pub fn remove_order(storage: &mut dyn Storage, pair_key: &[u8], order: &Order) -
         ],
     )
     .remove(order_id_key);
-
-    // Bucket::<OrderDirection>::multilevel(
-    //     storage,
-    //     &[
-    //         PREFIX_ORDER_BY_STATUS,
-    //         pair_key,
-    //         &order.status.as_bytes(),
-    //     ],
-    // )
-    // .remove(order_id_key);
 
     // return total orders belong to the tick
     Ok(total_tick_orders)

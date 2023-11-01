@@ -141,49 +141,6 @@ pub fn cancel_order(
     ]))
 }
 
-pub fn remove_stuff_order(
-    deps: DepsMut,
-    info: MessageInfo,
-    order_id: u64,
-    asset_infos: [AssetInfo; 2],
-) -> Result<Response, ContractError> {
-    let pair_key = pair_key(&[
-        asset_infos[0].to_raw(deps.api)?,
-        asset_infos[1].to_raw(deps.api)?,
-    ]);
-    let orderbook_pair = read_orderbook(deps.storage, &pair_key)?;
-    let order = read_order(deps.storage, &pair_key, order_id)?;
-
-    let admin_address = deps.api.addr_canonicalize(ADMIN_WALLET)?;
-
-    if admin_address != deps.api.addr_canonicalize(info.sender.as_str())? {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    remove_order(deps.storage, &pair_key, &order)?;
-
-    Ok(Response::new().add_attributes(vec![
-        ("action", "remove_stuff_order"),
-        (
-            "pair",
-            &format!(
-                "{} - {}",
-                &orderbook_pair.base_coin_info.to_normal(deps.api)?,
-                &orderbook_pair.quote_coin_info.to_normal(deps.api)?
-            ),
-        ),
-        ("order_id", &order_id.to_string()),
-        ("direction", &format!("{:?}", order.direction)),
-        ("status", &format!("{:?}", OrderStatus::Cancel)),
-        (
-            "bidder_addr",
-            &deps.api.addr_humanize(&order.bidder_addr)?.to_string(),
-        ),
-        ("offer_amount", &order.offer_amount.to_string()),
-        ("ask_amount", &order.ask_amount.to_string()),
-    ]))
-}
-
 // pub fn excecute_withdraw(
 //     deps: DepsMut,
 //     info: MessageInfo,

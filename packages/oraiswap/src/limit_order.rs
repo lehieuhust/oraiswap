@@ -120,11 +120,6 @@ pub enum ExecuteMsg {
         order_id: u64,
         status: OrderStatus,
     },
-
-    RemoveStuffOrder {
-        order_id: u64,
-        asset_infos: [AssetInfo; 2],
-    },
 }
 
 #[cw_serde]
@@ -212,6 +207,8 @@ pub struct ContractInfoResponse {
 
     // admin can update the parameter, may be multisig
     pub admin: Addr,
+    pub commission_rate: String,
+    pub reward_address: Addr
 }
 
 #[cw_serde]
@@ -266,6 +263,11 @@ pub struct OrderBookMatchableResponse {
     pub is_matchable: bool,
 }
 
-/// We currently take no arguments for migrations
 #[cw_serde]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    pub name: String,
+    pub version: String,
+    pub admin: Addr,
+    pub commission_rate: String,
+    pub reward_address: Addr
+}

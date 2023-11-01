@@ -8,11 +8,14 @@ use cosmwasm_std::{
 use oraiswap::error::ContractError;
 
 use crate::order::{
-    cancel_order, query_last_order_id, query_order, query_orderbook,
-    query_orderbooks, query_orders, submit_order, remove_pair, excecute_pair, query_orderbook_is_matchable, query_match_price, execute_remove_price, query_status, execute_remove_status, remove_stuff_order,
+    cancel_order, excecute_pair, execute_remove_price, execute_remove_status, query_last_order_id,
+    query_match_price, query_order, query_orderbook, query_orderbook_is_matchable,
+    query_orderbooks, query_orders, query_status, remove_pair, submit_order,
 };
 use crate::orderbook::OrderBook;
-use crate::state::{init_last_order_id, read_config, store_config, store_orderbook, read_orderbook};
+use crate::state::{
+    init_last_order_id, read_config, read_orderbook, store_config, store_orderbook,
+};
 use crate::tick::{query_tick, query_ticks};
 
 use cw20::Cw20ReceiveMsg;
@@ -39,7 +42,7 @@ pub fn instantiate(
 ) -> StdResult<Response> {
     let creator = deps.api.addr_canonicalize(info.sender.as_str())?;
     let default_reward_address = deps.api.addr_canonicalize(REWARD_WALLET)?;
-    let config = ContractInfo { 
+    let config = ContractInfo {
         name: msg.name.unwrap_or(CONTRACT_NAME.to_string()),
         version: msg.version.unwrap_or(CONTRACT_VERSION.to_string()),
 
@@ -76,7 +79,10 @@ pub fn execute(
     match msg {
         ExecuteMsg::Receive(msg) => receive_cw20(deps, info, msg),
         ExecuteMsg::UpdateAdmin { admin } => execute_update_admin(deps, info, admin),
-        ExecuteMsg::UpdateConfig { reward_address, commission_rate } => execute_update_config(deps, info, reward_address, commission_rate),
+        ExecuteMsg::UpdateConfig {
+            reward_address,
+            commission_rate,
+        } => execute_update_config(deps, info, reward_address, commission_rate),
         ExecuteMsg::CreateOrderBookPair {
             base_coin_info,
             quote_coin_info,
@@ -90,11 +96,11 @@ pub fn execute(
             spread,
             min_quote_coin_amount,
         ),
-        ExecuteMsg::SubmitOrder {
-            direction,
-            assets,
-        } => {
-            let pair_key = pair_key(&[assets[0].to_raw(deps.api)?.info, assets[1].to_raw(deps.api)?.info]);
+        ExecuteMsg::SubmitOrder { direction, assets } => {
+            let pair_key = pair_key(&[
+                assets[0].to_raw(deps.api)?.info,
+                assets[1].to_raw(deps.api)?.info,
+            ]);
             let orderbook_pair = read_orderbook(deps.storage, &pair_key)?;
 
             // if sell then paid asset must be ask asset, this way we've just assumed that we offer usdt and ask for orai
@@ -136,13 +142,37 @@ pub fn execute(
             // then submit order
             if orderbook_pair.base_coin_info.to_normal(deps.api)? == assets[0].info {
                 match direction {
-                    OrderDirection::Buy => submit_order(deps, info.sender, &pair_key, direction, [assets[1].clone(), assets[0].clone()]),
-                    OrderDirection::Sell => submit_order(deps, info.sender, &pair_key, direction, [assets[0].clone(), assets[1].clone()]),
+                    OrderDirection::Buy => submit_order(
+                        deps,
+                        info.sender,
+                        &pair_key,
+                        direction,
+                        [assets[1].clone(), assets[0].clone()],
+                    ),
+                    OrderDirection::Sell => submit_order(
+                        deps,
+                        info.sender,
+                        &pair_key,
+                        direction,
+                        [assets[0].clone(), assets[1].clone()],
+                    ),
                 }
             } else {
                 match direction {
-                    OrderDirection::Buy => submit_order(deps, info.sender, &pair_key, direction, [assets[0].clone(), assets[1].clone()]),
-                    OrderDirection::Sell => submit_order(deps, info.sender, &pair_key, direction, [assets[1].clone(), assets[0].clone()]),
+                    OrderDirection::Buy => submit_order(
+                        deps,
+                        info.sender,
+                        &pair_key,
+                        direction,
+                        [assets[0].clone(), assets[1].clone()],
+                    ),
+                    OrderDirection::Sell => submit_order(
+                        deps,
+                        info.sender,
+                        &pair_key,
+                        direction,
+                        [assets[1].clone(), assets[0].clone()],
+                    ),
                 }
             }
         }
@@ -150,31 +180,20 @@ pub fn execute(
             order_id,
             asset_infos,
         } => cancel_order(deps, info, order_id, asset_infos),
-        ExecuteMsg::ExecuteOrderBookPair {
-            asset_infos,
-            limit,
-        } => {
+        ExecuteMsg::ExecuteOrderBookPair { asset_infos, limit } => {
             excecute_pair(deps, info, asset_infos, limit)
         }
-        ExecuteMsg::RemoveOrderBookPair {
-            asset_infos,
-        } => {
-            remove_pair(deps, info, asset_infos)
-        }
+        ExecuteMsg::RemoveOrderBookPair { asset_infos } => remove_pair(deps, info, asset_infos),
         ExecuteMsg::RemoveTickPrice {
             price,
             asset_infos,
-            direction
+            direction,
         } => execute_remove_price(deps, info, price, direction, asset_infos),
         ExecuteMsg::RemoveStatus {
             asset_infos,
             order_id,
             status,
         } => execute_remove_status(deps, info, order_id, status, asset_infos),
-        ExecuteMsg::RemoveStuffOrder {
-            asset_infos,
-            order_id,
-        } => remove_stuff_order(deps, info, order_id, asset_infos),
     }
 }
 
@@ -243,10 +262,13 @@ pub fn execute_create_pair(
         return Err(ContractError::Unauthorized {});
     }
 
-    let pair_key = pair_key(&[base_coin_info.to_raw(deps.api)?, quote_coin_info.to_raw(deps.api)?]);
+    let pair_key = pair_key(&[
+        base_coin_info.to_raw(deps.api)?,
+        quote_coin_info.to_raw(deps.api)?,
+    ]);
 
     let ob = read_orderbook(deps.storage, &pair_key);
-    
+
     // Orderbook already exists
     if ob.is_ok() {
         return Err(ContractError::OrderBookAlreadyExists {});
@@ -256,7 +278,7 @@ pub fn execute_create_pair(
         base_coin_info: base_coin_info.to_raw(deps.api)?,
         quote_coin_info: quote_coin_info.to_raw(deps.api)?,
         spread,
-        min_quote_coin_amount
+        min_quote_coin_amount,
     };
     store_orderbook(deps.storage, &pair_key, &order_book)?;
 
@@ -283,11 +305,11 @@ pub fn receive_cw20(
     };
 
     match from_binary(&cw20_msg.msg) {
-        Ok(Cw20HookMsg::SubmitOrder {
-            direction,
-            assets,
-        }) => {
-            let pair_key = pair_key(&[assets[0].to_raw(deps.api)?.info, assets[1].to_raw(deps.api)?.info]);
+        Ok(Cw20HookMsg::SubmitOrder { direction, assets }) => {
+            let pair_key = pair_key(&[
+                assets[0].to_raw(deps.api)?.info,
+                assets[1].to_raw(deps.api)?.info,
+            ]);
             let orderbook_pair = read_orderbook(deps.storage, &pair_key)?;
 
             let paid_asset: &Asset;
@@ -321,16 +343,40 @@ pub fn receive_cw20(
 
             if orderbook_pair.base_coin_info.to_normal(deps.api)? == assets[0].info {
                 match direction {
-                    OrderDirection::Buy => submit_order(deps, sender, &pair_key, direction, [assets[1].clone(), assets[0].clone()]),
-                    OrderDirection::Sell => submit_order(deps, sender, &pair_key, direction, [assets[0].clone(), assets[1].clone()]),
+                    OrderDirection::Buy => submit_order(
+                        deps,
+                        sender,
+                        &pair_key,
+                        direction,
+                        [assets[1].clone(), assets[0].clone()],
+                    ),
+                    OrderDirection::Sell => submit_order(
+                        deps,
+                        sender,
+                        &pair_key,
+                        direction,
+                        [assets[0].clone(), assets[1].clone()],
+                    ),
                 }
             } else {
                 match direction {
-                    OrderDirection::Buy => submit_order(deps, sender, &pair_key, direction, [assets[0].clone(), assets[1].clone()]),
-                    OrderDirection::Sell => submit_order(deps, sender, &pair_key, direction, [assets[1].clone(), assets[0].clone()]),
+                    OrderDirection::Buy => submit_order(
+                        deps,
+                        sender,
+                        &pair_key,
+                        direction,
+                        [assets[0].clone(), assets[1].clone()],
+                    ),
+                    OrderDirection::Sell => submit_order(
+                        deps,
+                        sender,
+                        &pair_key,
+                        direction,
+                        [assets[1].clone(), assets[0].clone()],
+                    ),
                 }
             }
-        },
+        }
         Err(_) => Err(ContractError::InvalidCw20HookMessage {}),
     }
 }
@@ -343,9 +389,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             order_id,
             asset_infos,
         } => to_binary(&query_order(deps, asset_infos, order_id)?),
-        QueryMsg::OrderBook {
-            asset_infos,
-        } => to_binary(&query_orderbook(deps, asset_infos)?),
+        QueryMsg::OrderBook { asset_infos } => to_binary(&query_orderbook(deps, asset_infos)?),
         QueryMsg::OrderBooks {
             start_after,
             limit,
@@ -374,7 +418,10 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             direction,
         } => to_binary(&query_tick(
             deps.storage,
-            &pair_key(&[asset_infos[0].to_raw(deps.api)?, asset_infos[1].to_raw(deps.api)?]),
+            &pair_key(&[
+                asset_infos[0].to_raw(deps.api)?,
+                asset_infos[1].to_raw(deps.api)?,
+            ]),
             direction,
             price,
         )?),
@@ -386,23 +433,25 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             order_by,
         } => to_binary(&query_ticks(
             deps.storage,
-            &pair_key(&[asset_infos[0].to_raw(deps.api)?, asset_infos[1].to_raw(deps.api)?]),
+            &pair_key(&[
+                asset_infos[0].to_raw(deps.api)?,
+                asset_infos[1].to_raw(deps.api)?,
+            ]),
             direction,
             start_after,
             limit,
             order_by,
         )?),
-        QueryMsg::OrderBookMatchable {
-            asset_infos
-        } => to_binary(&query_orderbook_is_matchable(deps, asset_infos)?),
-        QueryMsg::MatchPrice {
-            limit,
-            asset_infos
-        } => to_binary(&query_match_price(deps, limit, asset_infos)?),
+        QueryMsg::OrderBookMatchable { asset_infos } => {
+            to_binary(&query_orderbook_is_matchable(deps, asset_infos)?)
+        }
+        QueryMsg::MatchPrice { limit, asset_infos } => {
+            to_binary(&query_match_price(deps, limit, asset_infos)?)
+        }
         QueryMsg::Status {
             asset_infos,
             order_id,
-            status
+            status,
         } => to_binary(&query_status(deps, asset_infos, order_id, status)?),
     }
 }
@@ -413,10 +462,23 @@ pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfoResponse> {
         version: info.version,
         name: info.name,
         admin: deps.api.addr_humanize(&info.admin)?,
+        commission_rate: info.commission_rate,
+        reward_address: deps.api.addr_humanize(&info.reward_address)?,
     })
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
+    let config = ContractInfo { 
+        name: msg.name,
+        version: msg.version,
+
+        // admin should be multisig
+        admin: deps.api.addr_canonicalize(msg.admin.as_str())?,
+        commission_rate: msg.commission_rate,
+        reward_address: deps.api.addr_canonicalize(msg.reward_address.as_str())?,
+    };
+
+    store_config(deps.storage, &config)?;
     Ok(Response::default())
 }
