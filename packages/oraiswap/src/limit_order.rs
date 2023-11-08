@@ -120,7 +120,6 @@ pub enum Cw20HookMsg {
 pub enum OrderFilter {
     Bidder(String),      // filter by bidder
     Price(Decimal),      // filter by price
-    Status(OrderStatus), // filter by status
     Tick,                // filter by direction
     None,                // no filter
 }
@@ -180,6 +179,8 @@ pub struct ContractInfoResponse {
 
     // admin can update the parameter, may be multisig
     pub admin: Addr,
+    pub commission_rate: String,
+    pub reward_address: Addr
 }
 
 #[cw_serde]

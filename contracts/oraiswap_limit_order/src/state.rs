@@ -130,16 +130,6 @@ pub fn store_order(
     )
     .save(order_id_key, &order.direction)?;
 
-    Bucket::multilevel(
-        storage,
-        &[
-            PREFIX_ORDER_BY_STATUS,
-            pair_key,
-            &order.status.as_bytes(),
-        ],
-    )
-    .save(order_id_key, &order.direction)?;
-
     Ok(total_tick_orders)
 }
 

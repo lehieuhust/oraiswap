@@ -8,8 +8,8 @@ use cosmwasm_std::{
 use oraiswap::error::ContractError;
 
 use crate::order::{
-    cancel_order, query_last_order_id, query_order, query_orderbook,
-    query_orderbook_is_matchable, query_orderbooks, query_orders, remove_pair, submit_order, execute_matching_orders,
+    cancel_order, execute_matching_orders, query_last_order_id, query_order, query_orderbook,
+    query_orderbook_is_matchable, query_orderbooks, query_orders, remove_pair, submit_order,
 };
 use crate::orderbook::OrderBook;
 use crate::state::{
@@ -139,40 +139,26 @@ pub fn execute(
             }
 
             // then submit order
-            if orderbook_pair.base_coin_info.to_normal(deps.api)? == assets[0].info {
-                match direction {
-                    OrderDirection::Buy => submit_order(
-                        deps,
-                        info.sender,
-                        &pair_key,
-                        direction,
-                        [assets[1].clone(), assets[0].clone()],
-                    ),
-                    OrderDirection::Sell => submit_order(
-                        deps,
-                        info.sender,
-                        &pair_key,
-                        direction,
-                        [assets[0].clone(), assets[1].clone()],
-                    ),
-                }
+            if (orderbook_pair.base_coin_info.to_normal(deps.api)? == assets[0].info
+                && direction == OrderDirection::Buy)
+                || (orderbook_pair.base_coin_info.to_normal(deps.api)? != assets[0].info
+                    && direction == OrderDirection::Sell)
+            {
+                submit_order(
+                    deps,
+                    info.sender,
+                    &pair_key,
+                    direction,
+                    [assets[1].clone(), assets[0].clone()],
+                )
             } else {
-                match direction {
-                    OrderDirection::Buy => submit_order(
-                        deps,
-                        info.sender,
-                        &pair_key,
-                        direction,
-                        [assets[0].clone(), assets[1].clone()],
-                    ),
-                    OrderDirection::Sell => submit_order(
-                        deps,
-                        info.sender,
-                        &pair_key,
-                        direction,
-                        [assets[1].clone(), assets[0].clone()],
-                    ),
-                }
+                submit_order(
+                    deps,
+                    info.sender,
+                    &pair_key,
+                    direction,
+                    [assets[0].clone(), assets[1].clone()],
+                )
             }
         }
         ExecuteMsg::CancelOrder {
@@ -330,40 +316,26 @@ pub fn receive_cw20(
                 });
             }
 
-            if orderbook_pair.base_coin_info.to_normal(deps.api)? == assets[0].info {
-                match direction {
-                    OrderDirection::Buy => submit_order(
-                        deps,
-                        sender,
-                        &pair_key,
-                        direction,
-                        [assets[1].clone(), assets[0].clone()],
-                    ),
-                    OrderDirection::Sell => submit_order(
-                        deps,
-                        sender,
-                        &pair_key,
-                        direction,
-                        [assets[0].clone(), assets[1].clone()],
-                    ),
-                }
+            if (orderbook_pair.base_coin_info.to_normal(deps.api)? == assets[0].info
+                && direction == OrderDirection::Buy)
+                || (orderbook_pair.base_coin_info.to_normal(deps.api)? != assets[0].info
+                    && direction == OrderDirection::Sell)
+            {
+                submit_order(
+                    deps,
+                    sender,
+                    &pair_key,
+                    direction,
+                    [assets[1].clone(), assets[0].clone()],
+                )
             } else {
-                match direction {
-                    OrderDirection::Buy => submit_order(
-                        deps,
-                        sender,
-                        &pair_key,
-                        direction,
-                        [assets[0].clone(), assets[1].clone()],
-                    ),
-                    OrderDirection::Sell => submit_order(
-                        deps,
-                        sender,
-                        &pair_key,
-                        direction,
-                        [assets[1].clone(), assets[0].clone()],
-                    ),
-                }
+                submit_order(
+                    deps,
+                    sender,
+                    &pair_key,
+                    direction,
+                    [assets[0].clone(), assets[1].clone()],
+                )
             }
         }
         Err(_) => Err(ContractError::InvalidCw20HookMessage {}),
@@ -445,6 +417,8 @@ pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfoResponse> {
         version: info.version,
         name: info.name,
         admin: deps.api.addr_humanize(&info.admin)?,
+        commission_rate: info.commission_rate,
+        reward_address: deps.api.addr_humanize(&info.reward_address)?,
     })
 }
 

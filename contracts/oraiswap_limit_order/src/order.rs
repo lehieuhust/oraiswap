@@ -1,12 +1,12 @@
 use std::convert::TryFrom;
 use std::str::FromStr;
 
-use crate::orderbook::{Executor, Order, BulkOrders, OrderBook};
+use crate::orderbook::{BulkOrders, Executor, Order, OrderBook};
 use crate::state::{
     increase_last_order_id, read_config, read_last_order_id, read_order, read_orderbook,
     read_orderbooks, read_orders, read_orders_with_indexer, read_reward, remove_order,
     remove_orderbook, store_order, store_reward, PREFIX_ORDER_BY_BIDDER, PREFIX_ORDER_BY_DIRECTION,
-    PREFIX_ORDER_BY_PRICE, PREFIX_ORDER_BY_STATUS, PREFIX_TICK,
+    PREFIX_ORDER_BY_PRICE, PREFIX_TICK,
 };
 use cosmwasm_std::{
     attr, Addr, Attribute, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Event, MessageInfo,
@@ -89,13 +89,7 @@ pub fn cancel_order(
         asset_infos[1].to_raw(deps.api)?,
     ]);
     let orderbook_pair = read_orderbook(deps.storage, &pair_key)?;
-    let mut order = read_order(deps.storage, &pair_key, order_id)?;
-
-    if order.status == OrderStatus::Fulfilled {
-        return Err(ContractError::OrderFulfilled {
-            order_id: order.order_id,
-        });
-    }
+    let order = read_order(deps.storage, &pair_key, order_id)?;
 
     if order.bidder_addr != deps.api.addr_canonicalize(info.sender.as_str())? {
         return Err(ContractError::Unauthorized {});
@@ -120,7 +114,6 @@ pub fn cancel_order(
     } else {
         vec![]
     };
-    order.status = OrderStatus::Cancel;
     remove_order(deps.storage, &pair_key, &order)?;
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
@@ -289,22 +282,16 @@ fn execute_bulk_orders(
         .find_list_match_price(deps.as_ref().storage, limit)
         .unwrap();
 
-    let mut pre_buy_bulk_orders: BulkOrders = BulkOrders::new(
-        0u64,
-        Uint128::zero(),
-        Uint128::zero(),
-    );
+    let mut pre_buy_bulk_orders: BulkOrders =
+        BulkOrders::new(0u64, Uint128::zero(), Uint128::zero());
 
-    let mut pre_sell_bulk_orders: BulkOrders = BulkOrders::new(
-        0u64,
-        Uint128::zero(),
-        Uint128::zero(),
-    );
+    let mut pre_sell_bulk_orders: BulkOrders =
+        BulkOrders::new(0u64, Uint128::zero(), Uint128::zero());
     let mut i = 0;
     let mut j = 0;
     let mut pre_i = 0;
     let mut pre_j = 0;
-    
+
     while i < best_buy_price_list.len() || j < best_sell_price_list.len() {
         let buy_price = best_buy_price_list[i];
         let sell_price = best_sell_price_list[j];
@@ -322,25 +309,23 @@ fn execute_bulk_orders(
         let mut buy_bulk_orders = if pre_i == i && j != 0 {
             pre_buy_bulk_orders.clone()
         } else {
-            orderbook_pair.
-                get_orders_sum(
-                    deps.as_ref().storage,
-                    buy_price,
-                    OrderDirection::Buy,
-                    limit
-                ).unwrap()
+            orderbook_pair.get_orders_sum(
+                deps.as_ref().storage,
+                buy_price,
+                OrderDirection::Buy,
+                limit,
+            )?
         };
 
         let mut sell_bulk_orders = if pre_j == j && i != 0 {
             pre_sell_bulk_orders.clone()
         } else {
-            orderbook_pair.
-                get_orders_sum(
-                    deps.as_ref().storage,
-                    sell_price,
-                    OrderDirection::Sell,
-                    limit
-                ).unwrap()
+            orderbook_pair.get_orders_sum(
+                deps.as_ref().storage,
+                sell_price,
+                OrderDirection::Sell,
+                limit,
+            )?
         };
 
         if match_one_price == false {
@@ -354,10 +339,7 @@ fn execute_bulk_orders(
         let lef_sell_offer = sell_bulk_orders.volume;
         let lef_sell_ask = Uint128::from(lef_sell_offer * match_price);
 
-        let sell_ask_amount = Uint128::min(
-            buy_bulk_orders.volume,
-            lef_sell_ask
-        );
+        let sell_ask_amount = Uint128::min(buy_bulk_orders.volume, lef_sell_ask);
 
         // multiply by decimal atomics because we want to get good round values
         let sell_offer_amount = Uint128::min(
@@ -377,11 +359,12 @@ fn execute_bulk_orders(
         buy_bulk_orders.filled_volume += sell_ask_amount;
         buy_bulk_orders.filled_ask_volume += sell_offer_amount;
 
-        buy_bulk_orders.volume = buy_bulk_orders.volume.
-                                    checked_sub(sell_ask_amount).unwrap();
+        buy_bulk_orders.volume = buy_bulk_orders.volume.checked_sub(sell_ask_amount).unwrap();
 
-        sell_bulk_orders.volume = sell_bulk_orders.volume.
-                                    checked_sub(sell_offer_amount).unwrap();
+        sell_bulk_orders.volume = sell_bulk_orders
+            .volume
+            .checked_sub(sell_offer_amount)
+            .unwrap();
 
         if buy_bulk_orders.filled_ask_volume >= buy_bulk_orders.ask_volume {
             buy_bulk_orders.ask_volume = Uint128::zero();
@@ -402,14 +385,14 @@ fn execute_bulk_orders(
             buy_bulk_orders_list.push(buy_bulk_orders);
             i += 1;
         }
-        if sell_bulk_orders.volume <=Uint128::from(10u128) {
+        if sell_bulk_orders.volume <= Uint128::from(10u128) {
             // sell out
             sell_bulk_orders.ask_volume = Uint128::zero();
             sell_bulk_orders_list.push(sell_bulk_orders);
             j += 1;
         }
     }
-    return Some((buy_bulk_orders_list, sell_bulk_orders_list))
+    return Some((buy_bulk_orders_list, sell_bulk_orders_list));
 }
 
 fn calculate_fee(
@@ -435,9 +418,7 @@ fn calculate_fee(
             reward.reward_assets[0].info =
                 orderbook_pair.base_coin_info.to_normal(deps.api).unwrap();
 
-            relayer_fee = Uint128::min(
-                Uint128::from(RELAY_FEE),
-                amount);
+            relayer_fee = Uint128::min(Uint128::from(RELAY_FEE), amount);
 
             relayer.reward_assets[0].amount += relayer_fee;
             relayer.reward_assets[0].info =
@@ -448,10 +429,7 @@ fn calculate_fee(
             reward.reward_assets[1].info =
                 orderbook_pair.quote_coin_info.to_normal(deps.api).unwrap();
 
-            relayer_fee = Uint128::min(
-                Uint128::from(RELAY_FEE) * price,
-                trader_ask_asset.amount,
-            );
+            relayer_fee = Uint128::min(Uint128::from(RELAY_FEE) * price, trader_ask_asset.amount);
 
             relayer.reward_assets[1].amount += relayer_fee;
             relayer.reward_assets[1].info =
@@ -461,7 +439,7 @@ fn calculate_fee(
 
     trader_ask_asset.amount = trader_ask_asset.amount.checked_sub(reward_fee).unwrap();
     trader_ask_asset.amount = trader_ask_asset.amount.checked_sub(relayer_fee).unwrap();
-    return relayer_fee + reward_fee
+    return relayer_fee + reward_fee;
 }
 
 fn process_orders(
@@ -472,7 +450,7 @@ fn process_orders(
     reward: &mut Executor,
     relayer: &mut Executor,
     limit: Option<u32>,
-) -> Vec<Order>{
+) -> Vec<Order> {
     let mut orders: Vec<Order> = Vec::new();
 
     for matched_order in bulk_orders.iter_mut() {
@@ -493,23 +471,20 @@ fn process_orders(
             amount: Uint128::zero(),
         };
 
-        for order in &mut orders_at_price{
-            let filled_offer = Uint128::min(
-                order.offer_amount,
-                matched_order.filled_volume
-            );
-            let filled_ask = Uint128::min(
-                order.ask_amount,
-                matched_order.filled_ask_volume
-            );
+        for order in &mut orders_at_price {
+            let filled_offer = Uint128::min(order.offer_amount, matched_order.filled_volume);
+            let filled_ask = Uint128::min(order.ask_amount, matched_order.filled_ask_volume);
 
-            matched_order.filled_volume = matched_order.filled_volume.checked_sub(filled_offer).unwrap();
-            matched_order.filled_ask_volume = matched_order.filled_ask_volume.checked_sub(filled_ask).unwrap();
+            matched_order.filled_volume = matched_order
+                .filled_volume
+                .checked_sub(filled_offer)
+                .unwrap();
+            matched_order.filled_ask_volume = matched_order
+                .filled_ask_volume
+                .checked_sub(filled_ask)
+                .unwrap();
 
-            order.fill_order(
-                filled_ask,
-                filled_offer,
-            );
+            order.fill_order(filled_ask, filled_offer);
             orders.push(order.clone());
 
             if !filled_ask.is_zero() {
@@ -522,15 +497,19 @@ fn process_orders(
                     orderbook_pair.clone(),
                     &mut trader_ask_asset,
                     reward,
-                    relayer
+                    relayer,
                 );
                 if !trader_ask_asset.amount.is_zero() {
                     let trader_payment: Payment = Payment {
                         address: deps.api.addr_humanize(&order.bidder_addr).unwrap(),
                         asset: Asset {
                             info: match matched_order.direction {
-                                OrderDirection::Buy => orderbook_pair.base_coin_info.to_normal(deps.api).unwrap(),
-                                OrderDirection::Sell => orderbook_pair.quote_coin_info.to_normal(deps.api).unwrap(),
+                                OrderDirection::Buy => {
+                                    orderbook_pair.base_coin_info.to_normal(deps.api).unwrap()
+                                }
+                                OrderDirection::Sell => {
+                                    orderbook_pair.quote_coin_info.to_normal(deps.api).unwrap()
+                                }
                             },
                             amount: trader_ask_asset.amount,
                         },
@@ -558,7 +537,6 @@ pub fn execute_matching_orders(
     let orderbook_pair = read_orderbook(deps.storage, &pair_key)?;
 
     let reward_wallet = contract_info.reward_address;
-
     let reward_assets = [
         Asset {
             info: orderbook_pair.base_coin_info.to_normal(deps.api)?,
@@ -585,13 +563,10 @@ pub fn execute_matching_orders(
     let mut ret_events: Vec<Event> = vec![];
     let mut total_reward: Vec<String> = Vec::new();
 
-    let mut total_orders :u64 = 0;
+    let mut total_orders: u64 = 0;
 
-    let (mut buy_list, mut sell_list) = execute_bulk_orders(
-        &deps,
-        orderbook_pair.clone(),
-        limit
-    ).unwrap();
+    let (mut buy_list, mut sell_list) =
+        execute_bulk_orders(&deps, orderbook_pair.clone(), limit).unwrap();
 
     let mut matched_buy_orders = process_orders(
         &deps,
@@ -600,7 +575,7 @@ pub fn execute_matching_orders(
         &mut list_bidder,
         &mut reward,
         &mut relayer,
-        limit
+        limit,
     );
     let mut matched_sell_orders = process_orders(
         &deps,
@@ -609,7 +584,7 @@ pub fn execute_matching_orders(
         &mut list_asker,
         &mut reward,
         &mut relayer,
-        limit
+        limit,
     );
 
     for buy_order in &mut matched_buy_orders {
@@ -617,11 +592,7 @@ pub fn execute_matching_orders(
         ret_events.push(to_events(
             &buy_order,
             deps.api.addr_humanize(&buy_order.bidder_addr)?.to_string(),
-            format!(
-                "{} {}",
-                buy_order.fee,
-                &reward.reward_assets[0].info
-            ),
+            format!("{} {}", buy_order.fee, &reward.reward_assets[0].info),
         ));
     }
 
@@ -630,20 +601,11 @@ pub fn execute_matching_orders(
         ret_events.push(to_events(
             &sell_order,
             deps.api.addr_humanize(&sell_order.bidder_addr)?.to_string(),
-            format!(
-                "{} {}",
-                sell_order.fee,
-                &reward.reward_assets[1].info
-            ),
+            format!("{} {}", sell_order.fee, &reward.reward_assets[1].info),
         ));
     }
 
-    transfer_to_trader(
-        &deps,
-        list_bidder,
-        list_asker,
-        &mut messages
-    );
+    transfer_to_trader(&deps, list_bidder, list_asker, &mut messages);
 
     transfer_reward(
         &deps,
@@ -668,7 +630,6 @@ pub fn execute_matching_orders(
         ])
         .add_events(ret_events))
 }
-
 
 pub fn remove_pair(
     deps: DepsMut,
@@ -774,27 +735,6 @@ pub fn query_orders(
                 limit,
                 order_by,
             )?
-        }
-        OrderFilter::Status(status) => {
-            let status_key = status.as_bytes();
-            match direction {
-                Some(_) => read_orders_with_indexer::<OrderDirection>(
-                    deps.storage,
-                    &[PREFIX_ORDER_BY_STATUS, &pair_key, &status_key],
-                    direction_filter,
-                    start_after,
-                    limit,
-                    order_by,
-                )?,
-                None => read_orders_with_indexer::<OrderDirection>(
-                    deps.storage,
-                    &[PREFIX_ORDER_BY_STATUS, &pair_key, &status_key],
-                    Box::new(|_| true),
-                    start_after,
-                    limit,
-                    order_by,
-                )?,
-            }
         }
         OrderFilter::None => match direction {
             Some(_) => read_orders_with_indexer::<OrderDirection>(
