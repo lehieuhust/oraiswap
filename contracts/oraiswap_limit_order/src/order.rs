@@ -108,9 +108,11 @@ pub fn cancel_order(
 
     // Build refund msg
     let messages = if left_offer_amount > Uint128::zero() {
-        vec![bidder_refund
-            .clone()
-            .into_msg(None, &deps.querier, deps.api.addr_humanize(&order.bidder_addr)?)?]
+        vec![bidder_refund.clone().into_msg(
+            None,
+            &deps.querier,
+            deps.api.addr_humanize(&order.bidder_addr)?,
+        )?]
     } else {
         vec![]
     };
