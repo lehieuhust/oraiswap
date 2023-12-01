@@ -9,8 +9,8 @@ use crate::state::{
     PREFIX_ORDER_BY_DIRECTION, PREFIX_ORDER_BY_PRICE, PREFIX_TICK,
 };
 use cosmwasm_std::{
-    attr, Addr, Attribute, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Event, MessageInfo,
-    Order as OrderBy, Response, StdResult, Storage, Uint128, Env,
+    attr, Addr, Attribute, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env, Event,
+    MessageInfo, Order as OrderBy, Response, StdResult, Storage, Uint128,
 };
 
 use cosmwasm_storage::ReadonlyBucket;
@@ -20,8 +20,6 @@ use oraiswap::limit_order::{
     LastOrderIdResponse, OrderBookMatchableResponse, OrderBookResponse, OrderBooksResponse,
     OrderDirection, OrderFilter, OrderResponse, OrderStatus, OrdersResponse,
 };
-
-const RELAY_FEE: u128 = 300u128;
 
 struct Payment {
     address: Addr,
@@ -53,7 +51,7 @@ pub fn submit_order(
             filled_offer_amount: Uint128::zero(),
             filled_ask_amount: Uint128::zero(),
             status: OrderStatus::Open,
-            block_time: env.block.time.seconds()
+            block_time: env.block.time.seconds(),
         },
         true,
     )?;
@@ -227,13 +225,12 @@ fn process_list_trader(
 
 fn transfer_spread(
     deps: &DepsMut,
+    spread_address: CanonicalAddr,
     orderbook_pair: &OrderBook,
     direction: OrderDirection,
     bulk_orders: &mut Vec<BulkOrders>,
     messages: &mut Vec<CosmosMsg>,
 ) {
-    let contract_info = read_config(deps.storage).unwrap();
-    let spread_address = contract_info.spread_address;
     let mut total_spread = Uint128::zero();
 
     for orders in bulk_orders.iter_mut() {
@@ -245,7 +242,7 @@ fn transfer_spread(
         }
     }
 
-    let spread_payment: Payment = Payment {
+    let spread_payment = Payment {
         address: deps.api.addr_humanize(&spread_address).unwrap(),
         asset: Asset {
             info: match direction {
@@ -442,14 +439,12 @@ fn calculate_fee(
 
     match direction {
         OrderDirection::Buy => {
-            relayer_fee = Uint128::min(Uint128::from(RELAY_FEE), amount);
-
+            relayer_fee = Uint128::min(Uint128::from(100u64), amount);
             reward.reward_assets[0].amount += reward_fee;
             relayer.reward_assets[0].amount += relayer_fee;
         }
         OrderDirection::Sell => {
             relayer_fee = Uint128::min(relayer_usdt_fee, amount);
-
             reward.reward_assets[1].amount += reward_fee;
             relayer.reward_assets[1].amount += relayer_fee;
         }
@@ -464,6 +459,7 @@ fn calculate_fee(
 
 fn process_orders(
     deps: &DepsMut,
+    relayer_fee: u64,
     orderbook_pair: &OrderBook,
     bulk_orders: &mut Vec<BulkOrders>,
     bulk_traders: &mut Vec<Payment>,
@@ -478,7 +474,7 @@ fn process_orders(
             },
             amount: Uint128::zero(),
         };
-        let relayer_usdt_fee = Uint128::from(RELAY_FEE) * bulk.price;
+        let relayer_usdt_fee = Uint128::from(relayer_fee) * bulk.price;
 
         for order in bulk.orders.iter_mut() {
             let filled_offer = Uint128::min(
@@ -538,15 +534,16 @@ pub fn execute_matching_orders(
     asset_infos: [AssetInfo; 2],
     limit: Option<u32>,
 ) -> Result<Response, ContractError> {
-    let contract_info = read_config(deps.storage)?;
+    let config = read_config(deps.storage)?;
     let relayer_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
+    let relayer_fee = config.relayer_fee;
     let pair_key = pair_key(&[
         asset_infos[0].to_raw(deps.api)?,
         asset_infos[1].to_raw(deps.api)?,
     ]);
     let orderbook_pair = read_orderbook(deps.storage, &pair_key)?;
 
-    let reward_wallet = contract_info.reward_address;
+    let reward_wallet = config.reward_address;
     let reward_assets = [
         Asset {
             info: orderbook_pair.base_coin_info.to_normal(deps.api)?,
@@ -560,7 +557,7 @@ pub fn execute_matching_orders(
     let mut reward = process_reward(
         deps.storage,
         &pair_key,
-        reward_wallet,
+        reward_wallet.clone(),
         reward_assets.clone(),
     );
 
@@ -580,6 +577,7 @@ pub fn execute_matching_orders(
 
     process_orders(
         &deps,
+        relayer_fee,
         &orderbook_pair,
         &mut buy_list,
         &mut list_bidder,
@@ -589,6 +587,7 @@ pub fn execute_matching_orders(
 
     process_orders(
         &deps,
+        relayer_fee,
         &orderbook_pair,
         &mut sell_list,
         &mut list_asker,
@@ -626,6 +625,7 @@ pub fn execute_matching_orders(
 
     transfer_spread(
         &deps,
+        reward_wallet.clone(),
         &orderbook_pair,
         OrderDirection::Sell,
         &mut sell_list,

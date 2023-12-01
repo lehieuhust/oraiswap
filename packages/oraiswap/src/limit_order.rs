@@ -9,9 +9,9 @@ pub struct ContractInfo {
     pub version: String,
     // admin can update the parameter, may be multisig
     pub admin: CanonicalAddr,
+    pub relayer_fee: u64,
     pub commission_rate: String,
-    pub reward_address: CanonicalAddr,
-    pub spread_address: CanonicalAddr,
+    pub reward_address: CanonicalAddr
 }
 
 #[cw_serde]
@@ -60,9 +60,9 @@ pub struct InstantiateMsg {
     pub name: Option<String>,
     pub version: Option<String>,
     pub admin: Option<Addr>,
+    pub relayer_fee: Option<u64>,
     pub commission_rate: Option<String>,
     pub reward_address: Option<Addr>,
-    pub spread_address: Option<Addr>,
 }
 
 #[cw_serde]
@@ -75,8 +75,8 @@ pub enum ExecuteMsg {
 
     UpdateConfig {
         reward_address: Option<Addr>,
-        spread_address: Option<Addr>,
         commission_rate: Option<String>,
+        relayer_fee: Option<u64>,
     },
 
     CreateOrderBookPair {

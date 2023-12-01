@@ -29,9 +29,9 @@ const CONTRACT_NAME: &str = "crates.io:oraiswap_limit_order";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 // default commission rate = 0.1 %
+const RELAY_FEE: u64 = 100u64;
 const DEFAULT_COMMISSION_RATE: &str = "0.001";
 const REWARD_WALLET: &str = "orai16stq6f4pnrfpz75n9ujv6qg3czcfa4qyjux5en";
-const SPREAD_WALLET: &str = "orai139tjpfj0h6ld3wff7v2x92ntdewungfss0ml3n";
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -42,7 +42,6 @@ pub fn instantiate(
 ) -> StdResult<Response> {
     let creator = deps.api.addr_canonicalize(info.sender.as_str())?;
     let default_reward_address = deps.api.addr_canonicalize(REWARD_WALLET)?;
-    let default_spread_address = deps.api.addr_canonicalize(SPREAD_WALLET)?;
     let config = ContractInfo {
         name: msg.name.unwrap_or(CONTRACT_NAME.to_string()),
         version: msg.version.unwrap_or(CONTRACT_VERSION.to_string()),
@@ -53,6 +52,7 @@ pub fn instantiate(
         } else {
             creator
         },
+        relayer_fee: msg.relayer_fee.unwrap_or(RELAY_FEE.into()),
         commission_rate: msg
             .commission_rate
             .unwrap_or(DEFAULT_COMMISSION_RATE.to_string()),
@@ -60,11 +60,6 @@ pub fn instantiate(
             deps.api.addr_canonicalize(reward_address.as_str())?
         } else {
             default_reward_address
-        },
-        spread_address: if let Some(spread_address) = msg.spread_address {
-            deps.api.addr_canonicalize(spread_address.as_str())?
-        } else {
-            default_spread_address
         },
     };
 
@@ -87,9 +82,9 @@ pub fn execute(
         ExecuteMsg::UpdateAdmin { admin } => execute_update_admin(deps, info, admin),
         ExecuteMsg::UpdateConfig {
             reward_address,
-            spread_address,
             commission_rate,
-        } => execute_update_config(deps, info, reward_address, spread_address, commission_rate),
+            relayer_fee
+        } => execute_update_config(deps, info, reward_address, commission_rate, relayer_fee),
         ExecuteMsg::CreateOrderBookPair {
             base_coin_info,
             quote_coin_info,
@@ -206,8 +201,8 @@ pub fn execute_update_config(
     deps: DepsMut,
     info: MessageInfo,
     reward_address: Option<Addr>,
-    spread_address: Option<Addr>,
     commission_rate: Option<String>,
+    relayer_fee: Option<u64>
 ) -> Result<Response, ContractError> {
     let mut contract_info = read_config(deps.storage)?;
     let sender_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
@@ -223,8 +218,8 @@ pub fn execute_update_config(
     }
 
     // update new reward address
-    if let Some(spread_address) = spread_address {
-        contract_info.reward_address = deps.api.addr_canonicalize(spread_address.as_str())?;
+    if let Some(relayer_fee) = relayer_fee {
+        contract_info.relayer_fee = relayer_fee;
     }
 
     // update new commission rate
