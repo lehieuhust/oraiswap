@@ -10,7 +10,7 @@ use crate::state::{
 };
 use cosmwasm_std::{
     attr, Addr, Attribute, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Event, MessageInfo,
-    Order as OrderBy, Response, StdResult, Storage, Uint128,
+    Order as OrderBy, Response, StdResult, Storage, Uint128, Env,
 };
 
 use cosmwasm_storage::ReadonlyBucket;
@@ -30,6 +30,7 @@ struct Payment {
 
 pub fn submit_order(
     deps: DepsMut,
+    env: Env,
     sender: Addr,
     pair_key: &[u8],
     direction: OrderDirection,
@@ -40,7 +41,6 @@ pub fn submit_order(
     }
 
     let order_id = increase_last_order_id(deps.storage)?;
-
     store_order(
         deps.storage,
         &pair_key,
@@ -53,6 +53,7 @@ pub fn submit_order(
             filled_offer_amount: Uint128::zero(),
             filled_ask_amount: Uint128::zero(),
             status: OrderStatus::Open,
+            block_time: env.block.time.seconds()
         },
         true,
     )?;

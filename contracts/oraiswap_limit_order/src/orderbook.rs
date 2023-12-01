@@ -27,6 +27,7 @@ pub struct Order {
     pub ask_amount: Uint128,
     pub filled_offer_amount: Uint128,
     pub filled_ask_amount: Uint128,
+    pub block_time: u64,
 }
 
 #[cw_serde]
@@ -43,6 +44,7 @@ impl Order {
         direction: OrderDirection,
         price: Decimal,
         ask_amount: Uint128,
+        block_time: u64,
     ) -> Self {
         let offer_amount = match direction {
             OrderDirection::Buy => ask_amount * price,
@@ -60,6 +62,7 @@ impl Order {
             filled_offer_amount: Uint128::zero(),
             filled_ask_amount: Uint128::zero(),
             status: OrderStatus::Open,
+            block_time
         }
     }
 
