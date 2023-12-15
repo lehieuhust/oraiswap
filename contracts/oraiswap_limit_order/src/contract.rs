@@ -83,7 +83,7 @@ pub fn execute(
         ExecuteMsg::UpdateConfig {
             reward_address,
             commission_rate,
-            relayer_fee
+            relayer_fee,
         } => execute_update_config(deps, info, reward_address, commission_rate, relayer_fee),
         ExecuteMsg::CreateOrderBookPair {
             base_coin_info,
@@ -202,7 +202,7 @@ pub fn execute_update_config(
     info: MessageInfo,
     reward_address: Option<Addr>,
     commission_rate: Option<String>,
-    relayer_fee: Option<u64>
+    relayer_fee: Option<u64>,
 ) -> Result<Response, ContractError> {
     let mut contract_info = read_config(deps.storage)?;
     let sender_addr = deps.api.addr_canonicalize(info.sender.as_str())?;

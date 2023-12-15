@@ -34,64 +34,56 @@ fn initialize() {
             bidder_addr.clone(),
             OrderDirection::Buy,
             Decimal::from_str("10.01").unwrap(),
-            10000u128.into(),
-            0u64,
+            10000u128.into()
         ),
         Order::new(
             increase_last_order_id(deps.as_mut().storage).unwrap(),
             bidder_addr.clone(),
             OrderDirection::Buy,
             Decimal::from_str("10.00").unwrap(),
-            10000u128.into(),
-            0u64,
+            10000u128.into()
         ),
         Order::new(
             increase_last_order_id(deps.as_mut().storage).unwrap(),
             bidder_addr.clone(),
             OrderDirection::Buy,
             Decimal::from_str("9.999").unwrap(),
-            10000u128.into(),
-            0u64,
+            10000u128.into()
         ),
         Order::new(
             increase_last_order_id(deps.as_mut().storage).unwrap(),
             bidder_addr.clone(),
             OrderDirection::Sell,
             Decimal::from_str("9.999").unwrap(),
-            10000u128.into(),
-            0u64,
+            10000u128.into()
         ),
         Order::new(
             increase_last_order_id(deps.as_mut().storage).unwrap(),
             bidder_addr.clone(),
             OrderDirection::Buy,
             Decimal::from_str("9.998").unwrap(),
-            10000u128.into(),
-            0u64,
+            10000u128.into()
         ),
         Order::new(
             increase_last_order_id(deps.as_mut().storage).unwrap(),
             bidder_addr.clone(),
             OrderDirection::Sell,
             Decimal::from_str("9.998").unwrap(),
-            10000u128.into(),
-            0u64,
+            10000u128.into()
         ),
         Order::new(
             increase_last_order_id(deps.as_mut().storage).unwrap(),
             bidder_addr.clone(),
             OrderDirection::Sell,
             Decimal::from_str("9.997").unwrap(),
-            10000u128.into(),
-            0u64,
+            10000u128.into()
         ),
         Order::new(
             increase_last_order_id(deps.as_mut().storage).unwrap(),
             bidder_addr.clone(),
             OrderDirection::Sell,
             Decimal::from_str("9.996").unwrap(),
-            10000u128.into(),
-            0u64,
+            10000u128.into()
         ),
     ];
 
@@ -157,40 +149,35 @@ fn buy_orders_at() {
             bidder_addr.clone(),
             OrderDirection::Sell,
             Decimal::from_str("1.1").unwrap(),
-            10000u128.into(),
-            0u64,
+            10000u128.into()
         ),
         Order::new(
             increase_last_order_id(deps.as_mut().storage).unwrap(),
             bidder_addr.clone(),
             OrderDirection::Buy,
             Decimal::from_str("1.1").unwrap(),
-            10000u128.into(),
-            0u64,
+            10000u128.into()
         ),
         Order::new(
             increase_last_order_id(deps.as_mut().storage).unwrap(),
             bidder_addr.clone(),
             OrderDirection::Buy,
             Decimal::from_str("1.1").unwrap(),
-            10000u128.into(),
-            0u64,
+            10000u128.into()
         ),
         Order::new(
             increase_last_order_id(deps.as_mut().storage).unwrap(),
             bidder_addr.clone(),
             OrderDirection::Buy,
             Decimal::from_str("1.0").unwrap(),
-            10000u128.into(),
-            0u64,
+            10000u128.into()
         ),
         Order::new(
             increase_last_order_id(deps.as_mut().storage).unwrap(),
             bidder_addr.clone(),
             OrderDirection::Buy,
             Decimal::from_str("1.2").unwrap(),
-            10000u128.into(),
-            0u64,
+            10000u128.into()
         ),
     ];
 
@@ -251,40 +238,35 @@ fn sell_orders_at() {
             bidder_addr.clone(),
             OrderDirection::Buy,
             Decimal::from_str("1.1").unwrap(),
-            10000u128.into(),
-            0u64,
+            10000u128.into()
         ),
         Order::new(
             increase_last_order_id(deps.as_mut().storage).unwrap(),
             bidder_addr.clone(),
             OrderDirection::Sell,
             Decimal::from_str("1.1").unwrap(),
-            10000u128.into(),
-            0u64,
+            10000u128.into()
         ),
         Order::new(
             increase_last_order_id(deps.as_mut().storage).unwrap(),
             bidder_addr.clone(),
             OrderDirection::Sell,
             Decimal::from_str("1.1").unwrap(),
-            10000u128.into(),
-            0u64,
+            10000u128.into()
         ),
         Order::new(
             increase_last_order_id(deps.as_mut().storage).unwrap(),
             bidder_addr.clone(),
             OrderDirection::Sell,
             Decimal::from_str("1.0").unwrap(),
-            10000u128.into(),
-            0u64,
+            10000u128.into()
         ),
         Order::new(
             increase_last_order_id(deps.as_mut().storage).unwrap(),
             bidder_addr.clone(),
             OrderDirection::Sell,
             Decimal::from_str("1.2").unwrap(),
-            10000u128.into(),
-            0u64,
+            10000u128.into()
         ),
     ];
 
@@ -358,16 +340,14 @@ fn highest_lowest_price() {
                     bidder_addr.clone(),
                     OrderDirection::Buy,
                     Decimal::from_str("1.1").unwrap(),
-                    10000u128.into(),
-                    0u64,
+                    10000u128.into()
                 ),
                 Order::new(
                     increase_last_order_id(deps.as_mut().storage).unwrap(),
                     bidder_addr.clone(),
                     OrderDirection::Buy,
                     Decimal::from_str("1.0").unwrap(),
-                    10000u128.into(),
-                    0u64,
+                    10000u128.into()
                 ),
             ],
             highest_price: Decimal::from_str("1.1").unwrap(),
@@ -382,7 +362,6 @@ fn highest_lowest_price() {
                     OrderDirection::Sell,
                     Decimal::from_str("1.1").unwrap(),
                     10000u128.into(),
-                    0u64,
                 ),
                 Order::new(
                     increase_last_order_id(deps.as_mut().storage).unwrap(),
@@ -390,7 +369,6 @@ fn highest_lowest_price() {
                     OrderDirection::Sell,
                     Decimal::from_str("1.0").unwrap(),
                     10000u128.into(),
-                    0u64,
                 ),
             ],
             highest_price: Decimal::from_str("1.1").unwrap(),
@@ -405,7 +383,6 @@ fn highest_lowest_price() {
                     OrderDirection::Sell,
                     Decimal::from_str("1.1").unwrap(),
                     10000u128.into(),
-                    0u64,
                 ),
                 Order::new(
                     increase_last_order_id(deps.as_mut().storage).unwrap(),
@@ -413,7 +390,6 @@ fn highest_lowest_price() {
                     OrderDirection::Sell,
                     Decimal::from_str("1.0").unwrap(),
                     10000u128.into(),
-                    0u64,
                 ),
                 Order::new(
                     increase_last_order_id(deps.as_mut().storage).unwrap(),
@@ -421,7 +397,6 @@ fn highest_lowest_price() {
                     OrderDirection::Buy,
                     Decimal::from_str("1.0").unwrap(),
                     10000u128.into(),
-                    0u64,
                 ),
                 Order::new(
                     increase_last_order_id(deps.as_mut().storage).unwrap(),
@@ -429,7 +404,6 @@ fn highest_lowest_price() {
                     OrderDirection::Buy,
                     Decimal::from_str("0.9").unwrap(),
                     10000u128.into(),
-                    0u64,
                 ),
             ],
             highest_price: Decimal::from_str("1.1").unwrap(),

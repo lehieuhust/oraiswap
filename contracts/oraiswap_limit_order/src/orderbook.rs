@@ -27,7 +27,6 @@ pub struct Order {
     pub ask_amount: Uint128,
     pub filled_offer_amount: Uint128,
     pub filled_ask_amount: Uint128,
-    pub block_time: u64,
 }
 
 #[cw_serde]
@@ -44,7 +43,6 @@ impl Order {
         direction: OrderDirection,
         price: Decimal,
         ask_amount: Uint128,
-        block_time: u64,
     ) -> Self {
         let offer_amount = match direction {
             OrderDirection::Buy => ask_amount * price,
@@ -62,7 +60,6 @@ impl Order {
             filled_offer_amount: Uint128::zero(),
             filled_ask_amount: Uint128::zero(),
             status: OrderStatus::Open,
-            block_time
         }
     }
 
@@ -252,67 +249,6 @@ impl OrderBook {
     ) -> StdResult<Vec<Order>> {
         let pair_key = &self.get_pair_key();
         read_orders(storage, pair_key, start_after, limit, order_by)
-    }
-
-    /// find best buy price and best sell price that matched a spread, currently no spread is set
-    pub fn find_match_price(&self, storage: &dyn Storage) -> Option<(Decimal, Decimal)> {
-        let pair_key = &self.get_pair_key();
-        let (mut best_buy_price, found, _) = self.highest_price(storage, OrderDirection::Buy);
-        if !found {
-            return None;
-        }
-
-        // if there is spread, find the best sell price closest to best buy price
-        if let Some(spread) = self.spread {
-            let spread_factor = Decimal::one() + spread;
-            let buy_price_list = ReadonlyBucket::<u64>::multilevel(
-                storage,
-                &[PREFIX_TICK, pair_key, OrderDirection::Buy.as_bytes()],
-            )
-            .range(None, None, OrderBy::Descending)
-            .filter_map(|item| {
-                if let Ok((price_key, _)) = item {
-                    let buy_price =
-                        Decimal::raw(u128::from_be_bytes(price_key.try_into().unwrap()));
-                    return Some(buy_price);
-                }
-                None
-            })
-            .collect::<Vec<Decimal>>();
-
-            let tick_namespaces = &[PREFIX_TICK, pair_key, OrderDirection::Sell.as_bytes()];
-
-            // loop through sell ticks in Order ascending (low to high), if there is sell tick that satisfies formulation: sell <= highest buy <= sell * (1 + spread)
-            if let Some(sell_price) = ReadonlyBucket::<u64>::multilevel(storage, tick_namespaces)
-                .range(None, None, OrderBy::Ascending)
-                .find_map(|item| {
-                    if let Ok((price_key, _)) = item {
-                        let sell_price =
-                            Decimal::raw(u128::from_be_bytes(price_key.try_into().unwrap()));
-
-                        for buy_price in &buy_price_list {
-                            if buy_price.ge(&sell_price)
-                                && buy_price.le(&(sell_price * spread_factor))
-                            {
-                                best_buy_price = *buy_price;
-                                return Some(sell_price);
-                            }
-                        }
-                    }
-                    None
-                })
-            {
-                return Some((best_buy_price, sell_price));
-            }
-        } else {
-            let (lowest_sell_price, found, _) = self.lowest_price(storage, OrderDirection::Sell);
-            // there is a match, we will find the best price with spread to prevent market fluctuation
-            // we can use spread to convert price to index as well
-            if found && best_buy_price.ge(&lowest_sell_price) {
-                return Some((best_buy_price, lowest_sell_price));
-            }
-        }
-        None
     }
 
     /// find list best buy / sell prices

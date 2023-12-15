@@ -28,7 +28,7 @@ struct Payment {
 
 pub fn submit_order(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     sender: Addr,
     pair_key: &[u8],
     direction: OrderDirection,
@@ -51,7 +51,6 @@ pub fn submit_order(
             filled_offer_amount: Uint128::zero(),
             filled_ask_amount: Uint128::zero(),
             status: OrderStatus::Open,
-            block_time: env.block.time.seconds(),
         },
         true,
     )?;
@@ -424,7 +423,7 @@ fn execute_bulk_orders(
 fn calculate_fee(
     deps: &DepsMut,
     amount: Uint128,
-    relayer_usdt_fee: Uint128,
+    relayer_quote_fee: Uint128,
     direction: OrderDirection,
     trader_ask_asset: &mut Asset,
     reward: &mut Executor,
@@ -434,8 +433,9 @@ fn calculate_fee(
     let relayer_fee: Uint128;
     let contract_info = read_config(deps.storage).unwrap();
     let commission_rate = Decimal::from_str(&contract_info.commission_rate).unwrap();
-
+    println!("calculate_fee - amount: {:?}", amount);
     reward_fee = amount * commission_rate;
+    println!("calculate_fee - reward_fee: {:?}", reward_fee);
 
     match direction {
         OrderDirection::Buy => {
@@ -444,7 +444,7 @@ fn calculate_fee(
             relayer.reward_assets[0].amount += relayer_fee;
         }
         OrderDirection::Sell => {
-            relayer_fee = Uint128::min(relayer_usdt_fee, amount);
+            relayer_fee = Uint128::min(relayer_quote_fee, amount);
             reward.reward_assets[1].amount += reward_fee;
             relayer.reward_assets[1].amount += relayer_fee;
         }
@@ -474,7 +474,7 @@ fn process_orders(
             },
             amount: Uint128::zero(),
         };
-        let relayer_usdt_fee = Uint128::from(relayer_fee) * bulk.price;
+        let relayer_quote_fee = Uint128::from(relayer_fee) * bulk.price;
 
         for order in bulk.orders.iter_mut() {
             let filled_offer = Uint128::min(
@@ -507,7 +507,7 @@ fn process_orders(
                 calculate_fee(
                     deps,
                     filled_ask,
-                    relayer_usdt_fee,
+                    relayer_quote_fee,
                     bulk.direction,
                     &mut trader_ask_asset,
                     reward,
